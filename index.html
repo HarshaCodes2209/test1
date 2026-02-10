@@ -1,125 +1,522 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Slouch Detector</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      background: #111;
-      color: #fff;
-    }
-    video, canvas {
-      transform: scaleX(-1);
-      border-radius: 10px;
-    }
-    #warning {
-      margin-top: 15px;
-      font-size: 24px;
-      color: #00ff88;
-    }
-    .slouch {
-      color: #ff4444;
-      animation: pulse 1s infinite;
-    }
-    @keyframes pulse {
-      0% { opacity: 1; }
-      50% { opacity: 0.4; }
-      100% { opacity: 1; }
-    }
-  </style>
+<meta charset="UTF-8">
+<title>AI Posture Assistant</title>
+
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Rajdhani', sans-serif;
+  color: #e8fbff;
+  /* lighter, less dark background */
+  background:
+    radial-gradient(circle at 10% 0%, #16365c 0, transparent 55%),
+    radial-gradient(circle at 90% 0%, #34245c 0, transparent 55%),
+    radial-gradient(circle at 50% 120%, #071827 0, #040915 55%);
+  overflow: hidden;
+}
+
+/* Animated grid background */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0, 255, 210, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 210, 0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mix-blend-mode: screen;
+  opacity: 0.5;
+  pointer-events: none;
+  animation: gridDrift 20s linear infinite;
+}
+
+@keyframes gridDrift {
+  from { transform: translate3d(0,0,0); }
+  to   { transform: translate3d(-40px,-40px,0); }
+}
+
+/* Subtle vignette – significantly lightened */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle at top, transparent 0, rgba(0,0,0,0.25) 75%),
+    radial-gradient(circle at bottom, transparent 0, rgba(0,0,0,0.35) 80%);
+  pointer-events: none;
+}
+
+/* Layout */
+#container {
+  position: relative;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Top title / badge */
+#titleBar {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,255,238,0.65);
+  /* keep glass feel but slightly lighter */
+  background: linear-gradient(
+      135deg,
+      rgba(0, 15, 25, 0.85),
+      rgba(0, 60, 90, 0.85)
+    );
+  backdrop-filter: blur(18px);
+  box-shadow:
+    0 0 14px rgba(0,255,238,0.35),
+    0 0 40px rgba(0,30,50,0.65);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#titleBar span.label {
+  color: #00ffee;
+}
+
+#titleBar span.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00ff88;
+  box-shadow: 0 0 10px #00ff88;
+  animation: onlinePulse 1.4s infinite ease-in-out;
+}
+
+@keyframes onlinePulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.6); opacity: 0.35; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* HUD panel – glassmorphism */
+#hud {
+  margin-bottom: 1.6vh;
+  padding: 10px 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(0,255,238,0.8);
+  background:
+    linear-gradient(135deg, rgba(0, 18, 30, 0.9), rgba(0, 45, 70, 0.7));
+  backdrop-filter: blur(22px);
+  box-shadow:
+    0 0 24px rgba(0,255,238,0.45),
+    0 0 60px rgba(0, 10, 20, 0.7);
+  font-size: 13px;
+  display: flex;
+  gap: 22px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.hud-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hud-label {
+  color: #7bdcff;
+  font-size: 11px;
+}
+
+.hud-value {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 13px;
+  color: #ffffff;
+}
+
+/* Decorative HUD dividers */
+.hud-divider {
+  width: 1px;
+  height: 18px;
+  background: linear-gradient(to bottom, transparent, #00ffee, transparent);
+  opacity: 0.5;
+}
+
+/* Camera HUD shell */
+#hudShell {
+  position: relative;
+}
+
+/* Camera frame */
+canvas {
+  width: 60vw;
+  max-width: 760px;
+  min-width: 420px;
+  aspect-ratio: 4 / 3;
+  border-radius: 22px;
+  transform: scaleX(-1);
+  border: 1px solid rgba(0,255,238,0.85);
+  background: radial-gradient(circle at 15% 0%, rgba(0,255,238,0.12), transparent 55%),
+              radial-gradient(circle at 85% 100%, rgba(255,51,153,0.18), transparent 55%);
+  box-shadow:
+    0 0 26px rgba(0,255,238,0.8),
+    0 0 70px rgba(0, 0, 0, 0.7);
+  animation: hudGlow 4s infinite ease-in-out;
+}
+
+@keyframes hudGlow {
+  0% { box-shadow: 0 0 20px rgba(0,255,238,0.7), 0 0 70px rgba(0,0,0,0.7); }
+  50% { box-shadow: 0 0 34px rgba(0,255,238,1), 0 0 90px rgba(0,0,0,0.9); }
+  100% { box-shadow: 0 0 20px rgba(0,255,238,0.7), 0 0 70px rgba(0,0,0,0.7); }
+}
+
+/* Corner brackets */
+.hud-corner {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 2px solid #00ffee;
+  opacity: 0.6;
+}
+
+.hud-corner.tl { top: 10px; left: 10px; border-right: none; border-bottom: none; }
+.hud-corner.tr { top: 10px; right: 10px; border-left: none; border-bottom: none; }
+.hud-corner.bl { bottom: 10px; left: 10px; border-right: none; border-top: none; }
+.hud-corner.br { bottom: 10px; right: 10px; border-left: none; border-top: none; }
+
+/* Scan line overlay */
+#scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(0,0,0,0.18) 1px, transparent 1px);
+  background-size: 100% 3px;
+  mix-blend-mode: soft-light;
+  opacity: 0.45;
+}
+
+/* Warning text */
+#warning {
+  margin-top: 1.6vh;
+  font-size: 24px;
+  font-family: 'Orbitron', sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-shadow: 0 0 18px currentColor;
+  transition: 0.3s;
+}
+
+/* Slouch alert state */
+.slouch {
+  color: #ff3355;
+  animation: pulse 0.9s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; transform: translateY(0); }
+  50% { opacity: 0.55; transform: translateY(-1px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Gauge container with label */
+#gaugeBlock {
+  margin-top: 1.7vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+#gaugeLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: #7bdcff;
+}
+
+/* Gauge */
+#gauge {
+  position: relative;
+  width: 280px;
+  height: 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,255,238,0.9);
+  box-shadow: 0 0 14px rgba(0,255,238,0.7) inset;
+  background: radial-gradient(circle at 0 50%, rgba(0,255,136,0.25), transparent 60%),
+              radial-gradient(circle at 50% 50%, rgba(255,170,0,0.2), transparent 60%),
+              radial-gradient(circle at 100% 50%, rgba(255,51,85,0.3), transparent 60%);
+  overflow: hidden;
+}
+
+#gaugeFill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #00ff88, #ffaa00, #ff3355);
+  box-shadow:
+    0 0 18px rgba(0,255,136,0.8),
+    0 0 22px rgba(255,51,85,0.65);
+  transition: width 0.35s ease;
+}
+
+/* Gauge tick marks */
+#gauge::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  background-image: repeating-linear-gradient(
+    to right,
+    rgba(0,0,0,0.0) 0,
+    rgba(0,0,0,0.0) 7px,
+    rgba(0,255,238,0.3) 8px
+  );
+  opacity: 0.6;
+  mix-blend-mode: soft-light;
+}
+
+/* Mute hint */
+#hint {
+  position: absolute;
+  bottom: 14px;
+  right: 18px;
+  font-size: 12px;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+/* Mute icon dot */
+#hintDot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #ffaa00;
+  box-shadow: 0 0 8px #ffaa00;
+}
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+  #hud {
+    font-size: 11px;
+    gap: 14px;
+    padding: 8px 12px;
+  }
+  canvas {
+    width: 88vw;
+    min-width: 0;
+  }
+  #warning {
+    font-size: 18px;
+  }
+  #gauge {
+    width: 220px;
+  }
+}
+
+</style>
 </head>
+
 <body>
+<div id="container">
 
-  <h1>🪑 Slouch Detector</h1>
-  <p>Sit straight. I’m watching 👀</p>
+  <div id="titleBar">
+    <span class="dot"></span>
+    <span class="label">AI POSTURE ASSISTANT - LIVE FEED</span>
+  </div>
+<br>
+  <div id="hud">
+    <div class="hud-item">
+      <span class="hud-label">AI STATE</span>
+      <span class="hud-value" id="mood">Observing</span>
+    </div>
 
-  <video id="video" autoplay playsinline></video>
-  <canvas id="canvas"></canvas>
+    <div class="hud-divider"></div>
 
-  <div id="warning">Posture looks good 👍</div>
+    <div class="hud-item">
+      <span class="hud-label">X OFFSET</span>
+      <span class="hud-value" id="xOffset">0</span>
+    </div>
 
-  <!-- MediaPipe -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <div class="hud-item">
+      <span class="hud-label">Y OFFSET</span>
+      <span class="hud-value" id="yOffset">0</span>
+    </div>
+  </div>
 
-  <script>
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-    const warning = document.getElementById("warning");
+  <div id="hudShell">
+    <div class="hud-corner tl"></div>
+    <div class="hud-corner tr"></div>
+    <div class="hud-corner bl"></div>
+    <div class="hud-corner br"></div>
+    <div id="scanlines"></div>
+    <canvas id="canvas"></canvas>
+  </div>
 
-    const pose = new Pose({
-      locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
-    });
+  <div id="warning">Posture Optimal ✔</div>
 
-    pose.setOptions({
-      modelComplexity: 1,
-      smoothLandmarks: true,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    });
+  <div id="gaugeBlock">
+    <div id="gaugeLabel">Posture Deviation</div>
+    <div id="gauge">
+      <div id="gaugeFill"></div>
+    </div>
+  </div>
 
-    pose.onResults(onResults);
+  <div id="hint">
+    <span id="hintDot"></span>
+    Press <b>M</b> to toggle voice
+  </div>
 
-    const camera = new Camera(video, {
-      onFrame: async () => {
-        await pose.send({ image: video });
-      },
-      width: 640,
-      height: 480,
-    });
-    camera.start();
+</div>
 
-    function onResults(results) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+<!-- MediaPipe -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
 
-      if (!results.poseLandmarks) return;
+const warning = document.getElementById("warning");
+const xEl = document.getElementById("xOffset");
+const yEl = document.getElementById("yOffset");
+const moodEl = document.getElementById("mood");
+const gaugeFill = document.getElementById("gaugeFill");
+const hintDot = document.getElementById("hintDot");
 
-      drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {
-        color: "#00ff88",
-        lineWidth: 4,
-      });
-      drawLandmarks(ctx, results.poseLandmarks, {
-        color: "#ffcc00",
-        lineWidth: 2,
-      });
+/* Voice system */
+const synth = window.speechSynthesis;
+let lastSpoken = 0;
+let voiceMuted = false;
 
-      checkSlouch(results.poseLandmarks);
-    }
+const voiceLines = [
+  "Please straighten your posture.",
+  "Sit upright to avoid strain.",
+  "Correct your posture.",
+  "Keep your back straight."
+];
 
-    function checkSlouch(landmarks) {
-      const nose = landmarks[0];
-      const leftShoulder = landmarks[11];
-      const rightShoulder = landmarks[12];
+/* Mute toggle */
+document.addEventListener("keydown", e => {
+  if (e.key.toLowerCase() === "m") {
+    voiceMuted = !voiceMuted;
+    moodEl.textContent = voiceMuted ? "Muted" : "Observing";
+    hintDot.style.background = voiceMuted ? "#ff3355" : "#ffaa00";
+    hintDot.style.boxShadow = voiceMuted
+      ? "0 0 8px #ff3355"
+      : "0 0 8px #ffaa00";
+  }
+});
 
-      const shoulderMidX = (leftShoulder.x + rightShoulder.x) / 2;
-      const shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2;
+/* Hidden video */
+const video = document.createElement("video");
+video.playsInline = true;
 
-      const forwardHeadDistance = nose.x - shoulderMidX;
-      const downwardHeadDistance = nose.y - shoulderMidY;
+/* Pose */
+const pose = new Pose({
+  locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`
+});
 
-      const SLOUCH_X_THRESHOLD = 0.08;
-      const SLOUCH_Y_THRESHOLD = -0.12;
+pose.setOptions({
+  modelComplexity: 1,
+  smoothLandmarks: true,
+  minDetectionConfidence: 0.6,
+  minTrackingConfidence: 0.6
+});
 
-      if (
-        Math.abs(forwardHeadDistance) > SLOUCH_X_THRESHOLD ||
-        downwardHeadDistance > SLOUCH_Y_THRESHOLD
-      ) {
-        warning.textContent = "⚠️ Straighten up! You’re slouching.";
-        warning.classList.add("slouch");
-      } else {
-        warning.textContent = "Posture looks good 👍";
-        warning.classList.remove("slouch");
-      }
-    }
-  </script>
+pose.onResults(onResults);
+
+/* Camera */
+const camera = new Camera(video, {
+  onFrame: async () => {
+    await pose.send({ image: video });
+  },
+  width: 640,
+  height: 480
+});
+camera.start();
+
+function onResults(res) {
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(res.image, 0, 0, canvas.width, canvas.height);
+
+  if (!res.poseLandmarks) return;
+
+  drawConnectors(ctx, res.poseLandmarks, POSE_CONNECTIONS, {
+    color: "#00ffee",
+    lineWidth: 2
+  });
+
+  drawLandmarks(ctx, res.poseLandmarks, {
+    color: "#ffaa00",
+    radius: 3
+  });
+
+  analyzePosture(res.poseLandmarks);
+}
+
+function speakAlert() {
+  if (voiceMuted) return;
+  if (synth.speaking) return;
+
+  const now = Date.now();
+  if (now - lastSpoken < 5000) return; // 5s cooldown
+
+  const utter = new SpeechSynthesisUtterance(
+    voiceLines[Math.floor(Math.random() * voiceLines.length)]
+  );
+  utter.rate = 1.05;
+  utter.pitch = 1.1;
+
+  synth.speak(utter);
+  lastSpoken = now;
+}
+
+function analyzePosture(lm) {
+  const nose = lm[0];
+  const lS = lm[11];
+  const rS = lm[12];
+
+  const midX = (lS.x + rS.x) / 2;
+  const midY = (lS.y + rS.y) / 2;
+
+  const dx = nose.x - midX;
+  const dy = nose.y - midY;
+
+  xEl.textContent = dx.toFixed(3);
+  yEl.textContent = dy.toFixed(3);
+
+  const score = Math.min(Math.abs(dx * 400 + dy * 400), 100);
+  gaugeFill.style.width = score + "%";
+
+  if (Math.abs(dx) > 0.08 || dy > -0.12) {
+    warning.textContent = "⚠ STRAIGHTEN UP";
+    warning.classList.add("slouch");
+    moodEl.textContent = voiceMuted ? "Muted" : "Alert";
+    speakAlert();
+  } else {
+    warning.textContent = "Posture Optimal ✔";
+    warning.classList.remove("slouch");
+    moodEl.textContent = voiceMuted ? "Muted" : "Stable";
+  }
+}
+</script>
 </body>
 </html>
