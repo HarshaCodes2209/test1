@@ -479,15 +479,21 @@ function speakAlert() {
   const now = Date.now();
   if (now - lastSpoken < 5000) return; // 5s cooldown
 
-  const utter = new SpeechSynthesisUtterance(
-    voiceLines[Math.floor(Math.random() * voiceLines.length)]
-  );
+  const line = voiceLines[Math.floor(Math.random() * voiceLines.length)];
+
+  const utter = new SpeechSynthesisUtterance(line);
   utter.rate = 1.05;
   utter.pitch = 1.1;
+
+  // 🔹 CONSOLE MESSAGE WHEN SOUND PLAYS
+  utter.onstart = () => {
+    console.log("[VOICE ALERT PLAYED]", line);
+  };
 
   synth.speak(utter);
   lastSpoken = now;
 }
+
 
 function analyzePosture(lm) {
   const nose = lm[0];
