@@ -331,8 +331,8 @@ canvas {
 </head>
 
 <body>
+<!-- [Keep your exact same HTML structure] -->
 <div id="container">
-
   <div id="titleBar">
     <span class="dot"></span>
     <span class="label">AI POSTURE ASSISTANT - LIVE FEED</span>
@@ -377,12 +377,11 @@ canvas {
 
   <div id="hint">
     <span id="hintDot"></span>
-    Press <b>M</b> to toggle voice
+    Press <b>M</b> to toggle audio
   </div>
-
 </div>
 
-<!-- MediaPipe -->
+<!-- [Keep MediaPipe scripts unchanged] -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
@@ -398,27 +397,38 @@ const moodEl = document.getElementById("mood");
 const gaugeFill = document.getElementById("gaugeFill");
 const hintDot = document.getElementById("hintDot");
 
-/* Voice system */
-const synth = window.speechSynthesis;
-let lastSpoken = 0;
-let voiceMuted = false;
+/* 🔊 MP3 Audio System - REPLACED Speech Synthesis */
+let lastAudioPlayed = 0;
+let audioMuted = false;
 
-const voiceLines = [
-  "Please straighten your posture.",
-  "Sit upright to avoid strain.",
-  "Correct your posture.",
-  "Keep your back straight."
+// Preload all 4 MP3 files
+const audioFiles = [
+  new Audio('mp31.mp3'),
+  new Audio('mp32.mp3'),
+  new Audio('mp33.mp3'),
+  new Audio('mp34.mp3')
 ];
 
-/* Mute toggle */
+// Preload them all for instant playback
+audioFiles.forEach((audio, index) => {
+  audio.preload = 'auto';
+  audio.volume = 0.8; // Adjust volume as needed
+});
+
+/* Mute toggle - Updated for MP3 */
 document.addEventListener("keydown", e => {
   if (e.key.toLowerCase() === "m") {
-    voiceMuted = !voiceMuted;
-    moodEl.textContent = voiceMuted ? "Muted" : "Observing";
-    hintDot.style.background = voiceMuted ? "#ff3355" : "#ffaa00";
-    hintDot.style.boxShadow = voiceMuted
+    audioMuted = !audioMuted;
+    moodEl.textContent = audioMuted ? "Muted" : "Observing";
+    hintDot.style.background = audioMuted ? "#ff3355" : "#ffaa00";
+    hintDot.style.boxShadow = audioMuted
       ? "0 0 8px #ff3355"
       : "0 0 8px #ffaa00";
+    
+    // Mute/unmute all audio files
+    audioFiles.forEach(audio => {
+      audio.muted = audioMuted;
+    });
   }
 });
 
@@ -472,28 +482,25 @@ function onResults(res) {
   analyzePosture(res.poseLandmarks);
 }
 
-function speakAlert() {
-  if (voiceMuted) return;
-  if (synth.speaking) return;
-
+function playAudioAlert() {
+  if (audioMuted) return;
+  
   const now = Date.now();
-  if (now - lastSpoken < 5000) return; // 5s cooldown
+  if (now - lastAudioPlayed < 5000) return; // 5s cooldown
 
-  const line = voiceLines[Math.floor(Math.random() * voiceLines.length)];
-
-  const utter = new SpeechSynthesisUtterance(line);
-  utter.rate = 1.05;
-  utter.pitch = 1.1;
-
-  // 🔹 CONSOLE MESSAGE WHEN SOUND PLAYS
-  utter.onstart = () => {
-    console.log("[VOICE ALERT PLAYED]", line);
-  };
-
-  synth.speak(utter);
-  lastSpoken = now;
+  // Pick random MP3 file (0-3)
+  const randomAudio = audioFiles[Math.floor(Math.random() * audioFiles.length)];
+  
+  // Reset and play
+  randomAudio.currentTime = 0;
+  randomAudio.play().then(() => {
+    console.log("[MP3 ALERT PLAYED]", `mp3${Math.floor(Math.random() * 4) + 1}.mp3`);
+  }).catch(e => {
+    console.error("Audio play failed:", e);
+  });
+  
+  lastAudioPlayed = now;
 }
-
 
 function analyzePosture(lm) {
   const nose = lm[0];
@@ -515,14 +522,16 @@ function analyzePosture(lm) {
   if (Math.abs(dx) > 0.08 || dy > -0.12) {
     warning.textContent = "⚠ STRAIGHTEN UP";
     warning.classList.add("slouch");
-    moodEl.textContent = voiceMuted ? "Muted" : "Alert";
-    speakAlert();
+    moodEl.textContent = audioMuted ? "Muted" : "Alert";
+    playAudioAlert(); // 🔊 Now plays MP3 instead of speech
   } else {
     warning.textContent = "Posture Optimal ✔";
     warning.classList.remove("slouch");
-    moodEl.textContent = voiceMuted ? "Muted" : "Stable";
+    moodEl.textContent = audioMuted ? "Muted" : "Stable";
   }
 }
 </script>
+
+<!-- [Include your full CSS in the <style> section above] -->
 </body>
 </html>
